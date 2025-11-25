@@ -1,0 +1,171 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{color}
+
+% Python code listing configuration
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codesilver}{rgb}{0.85,0.85,0.85}
+\definecolor{codeblue}{rgb}{0.25,0.41,0.88}
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{codesilver},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{codeblue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{magenta},
+    basicstyle=\footnotesize\ttfamily,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+\title{Practical Work 1: TCP File Transfer Report}
+\author{Student Name: Nguyễn Hoàng An \\ Student ID: 23BI14006}
+
+\begin{document}
+
+\maketitle
+
+\section{Goal}
+The goal of this practical work is to implement a 1-1 file transfer system over \textbf{TCP/IP} using \textbf{sockets} in a Command Line Interface (CLI), based on the provided framework.
+
+\section{Protocol Design}
+
+\subsection{How You Design Your Protocol}
+To enable the Server to correctly anticipate and receive the file, the communication protocol is designed in \textbf{two phases}:
+\begin{enumerate}
+    \item \textbf{Phase 1: Send File Information Header}
+    The Client sends a \textbf{single} data packet containing the file metadata structured as a string:
+    $$\text{Filename}\vert\text{Filesize\_in\_bytes}$$
+    \item \textbf{Phase 2: Send File Data}
+    The Client sequentially reads the file in chunks of \texttt{BUFFER\_SIZE} bytes and sends them over the socket until the entire file is transferred.
+\end{enumerate}
+
+\subsection{Data Header Structure}
+The Client creates a header string (e.g., \texttt{test\_file.txt|12345}), where \texttt{12345} is the exact file size in bytes. This allows the Server to determine exactly how many bytes to receive before closing the file.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{file_transfer_protocol.png}
+    \caption{File transfer protocol}
+    \label{fig:placeholder}
+\end{figure}
+
+
+\section{System Organization}
+
+\subsection{How You Organize Your System}
+The system is organized into a classic \textbf{Client-Server} model using TCP/IP sockets.
+
+\begin{enumerate}
+    \item \textbf{Server (\texttt{server.py}):} A passive component that listens for incoming connections on a predefined address and port (\texttt{127.0.0.1:65432}).
+    \item \textbf{Client (\texttt{client.py}):} An active component that initiates the connection to the Server and drives the file transfer process.
+\end{enumerate}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{file_transfer_flow.png}
+    \caption{File transfer flow}
+    \label{fig:placeholder}
+\end{figure}
+
+
+\section{File Transfer Implementation}
+
+\subsection{How You Implement the File Transfer: Client (\texttt{client.py})}
+The Client handles connection, header preparation, and data sending.
+
+\begin{lstlisting}[language=Python, caption=Code Snippet from Client: Sending Header and File Data, numbers=left]
+# Get file info
+filesize = os.path.getsize(FILE_TO_SEND)
+filename = os.path.basename(FILE_TO_SEND)
+    
+# File info
+header = f"{filename}|{filesize}"
+s.send(header.encode())
+    
+print(f"[*] File: {filename}, Size: {filesize} bytes")
+
+# Send file data
+bytes_sent = 0
+with open(FILE_TO_SEND, "rb") as f:
+    while True:
+        bytes_read = f.read(BUFFER_SIZE)
+        if not bytes_read:
+            break
+            
+        s.sendall(bytes_read)
+        bytes_sent += len(bytes_read)
+        print(f"\rSent {bytes_sent}/{filesize} bytes", end="")
+\end{lstlisting}
+
+\subsection{How You Implement the File Transfer: Server (\texttt{server.py})}
+The Server accepts the connection, receives the header, parses the file information, and writes the incoming data to a local file.
+
+\begin{lstlisting}[language=Python, caption=Code Snippet from Server: Receiving Header and File Data, numbers=left]
+# File info
+received = client_socket.recv(BUFFER_SIZE).decode()
+filename, filesize_str = received.split('|')
+filesize = int(filesize_str)
+filename = os.path.basename(filename)
+    
+print(f"[*] File: {filename}, Size: {filesize} bytes")
+
+# Receive file data
+bytes_received = 0
+with open("received_" + filename, "wb") as f:
+    while bytes_received < filesize:
+        remaining_bytes = filesize - bytes_received
+            
+        bytes_to_read = min(BUFFER_SIZE, remaining_bytes)
+        bytes_read = client_socket.recv(bytes_to_read)
+            
+        if not bytes_read:
+            break
+            
+        f.write(bytes_read)
+        bytes_received += len(bytes_read)
+        print(f"\rReceived {bytes_received}/{filesize} bytes", end="")
+\end{lstlisting}
+
+\section{Who Does What}
+
+The responsibilities are clearly divided between the Client and the Server:
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|l|l|}
+        \hline
+        \textbf{Component} & \textbf{Key Responsibilities} \\
+        \hline
+        \textbf{Server (\texttt{server.py})} & $\bullet$ Creates the socket, binds, and listens on port \texttt{65432}. \\
+        & $\bullet$ Accepts the connection from the Client. \\
+        & $\bullet$ \textbf{Receives and parses the Header} (\texttt{filename|filesize}). \\
+        & $\bullet$ \textbf{Receives file data} in chunks until \texttt{filesize} is reached. \\
+        & $\bullet$ Writes the received data to a new file (\texttt{received\_...}). \\
+        & $\bullet$ Closes the connections. \\
+        \hline
+        \textbf{Client (\texttt{client.py})} & $\bullet$ Creates the socket and connects to the Server. \\
+        & $\bullet$ Retrieves source file information (\texttt{test\_file.txt}). \\
+        & $\bullet$ \textbf{Creates and sends the Header} (\texttt{filename|filesize}). \\
+        & $\bullet$ \textbf{Reads and sends file data} in chunks (\texttt{BUFFER\_SIZE}). \\
+        & $\bullet$ Closes the connection. \\
+        \hline
+    \end{tabular}
+    \caption{Task Allocation}
+\end{table}
+
+\end{document}
