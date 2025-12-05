@@ -1,0 +1,2 @@
+Đây là nội dung file test cho RPC.
+Nó cần phải được gửi qua gRPC service.

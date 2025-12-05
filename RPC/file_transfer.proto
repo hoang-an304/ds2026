@@ -1,0 +1,34 @@
+// file_transfer.proto
+
+syntax = "proto3";
+
+package filetransfer;
+
+// Định nghĩa dịch vụ RPC
+service FileTransferService {
+  // Phương thức RPC để tải lên file
+  // Sử dụng 'stream' cho 'request' vì file là một chuỗi các chunk dữ liệu.
+  rpc UploadFile (stream FileChunk) returns (UploadStatus);
+}
+
+// Thông điệp chứa các chunk dữ liệu của file
+message FileChunk {
+  // 'oneof' cho phép chỉ một trong các trường được điền.
+  oneof file_data {
+    // Thông tin file (chỉ gửi ở chunk đầu tiên)
+    FileMetadata metadata = 1; 
+    // Dữ liệu file (gửi ở các chunk tiếp theo)
+    bytes chunk_data = 2;       
+  }
+}
+
+// Thông điệp chứa thông tin file
+message FileMetadata {
+  string filename = 1;
+}
+
+// Thông điệp phản hồi sau khi hoàn tất tải lên
+message UploadStatus {
+  bool success = 1;
+  string message = 2;
+}
