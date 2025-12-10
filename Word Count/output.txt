@@ -1,0 +1,9 @@
+a	1
+about	1
+frend	1
+hello	1
+mah	1
+test	2
+testing	2
+the	2
+world	2
